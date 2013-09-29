@@ -8,14 +8,45 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context=".MainActivity" >
 
+     <LinearLayout 
+     android:id="@id/summaryLayout"
+	 android:layout_width="match_parent"
+	 android:layout_height="wrap_content"
+	 tools:context=".MainActivity"
+	 android:orientation="horizontal"
+	 android:layout_alignParentTop="true" >
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="@string/swimmers_label" />
+
+        <TextView
+            android:id="@id/numSwimmersView"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent" />
+
+	</LinearLayout>
+	
 	<LinearLayout 
 	 android:id="@id/laptimeLayout"
 	 android:layout_width="match_parent"
 	 android:layout_height="match_parent"
 	 tools:context=".MainActivity"
-	 android:orientation="vertical" >
+	 android:orientation="vertical"
+	 android:layout_below="@id/summaryLayout" >
+
+	    <Button
+            android:id="@id/startButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/start_send" />
 
 	    <!--  lap times go here -->
+	    <ListView
+         android:id="@id/swimmersView"
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content" /> 
 
 	</LinearLayout>
 

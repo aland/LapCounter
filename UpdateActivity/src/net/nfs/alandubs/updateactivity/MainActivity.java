@@ -1,17 +1,23 @@
 package net.nfs.alandubs.updateactivity;
 
-import android.R.string;
-import android.os.Bundle;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Resources;
+import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ListView;
+import android.widget.TextView;
 //import android.view.Menu;
-import android.widget.Toast;
 
 public class MainActivity extends Activity {
+	private RaceEvent race;
+	private ListView listView;
+	private SwimmerAdapter adapter;
 
 	private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
 		@Override
@@ -19,7 +25,15 @@ public class MainActivity extends Activity {
 			Bundle bundle = intent.getExtras();
 			
 			if(bundle != null){
-				MainActivity.this.receivedBroadcast(intent, bundle);
+				if(intent.getAction().equals(getString(R.string.add_swimmer_action))){
+					MainActivity.this.receivedNewSwimmer(intent, bundle);
+				}
+				else if(intent.getAction().equals(getString(R.string.lap_complete_action))){
+					MainActivity.this.receivedLap(intent, bundle);
+				}
+				else {
+					Log.d("debug", intent.getAction());
+				}
 			}
 			else {
 				Log.d("activity", "no bundle");
@@ -31,16 +45,36 @@ public class MainActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		
+
 		setContentView(R.layout.activity_main);
+		Resources r = getResources();
+		
+	    race = new RaceEvent(r.getInteger(R.integer.maxlaps));
+		
+		listView = (ListView) findViewById(R.id.swimmersView);
+		adapter = new SwimmerAdapter(getBaseContext(), r.getInteger(R.integer.maxlaps));
+		listView.setAdapter(adapter);
+		adapter.updateSwimmers(race.getAllSwimmers());
+		
+		Button startButton = (Button) this.findViewById(R.id.startButton);
+		startButton.setOnClickListener(new View.OnClickListener() {
+		    public void onClick(View v) {
+		        // Do something in response to button click
+		    	startRace();
+		    }
+		});
+
 	}
 	
 	@Override
 	public void onResume(){
 		super.onResume();
 		IntentFilter filter = new IntentFilter();
-		filter.addAction("net.nfs.alandubs.updateactivity.LAP_COMPLETE");
+		filter.addAction(getString(R.string.add_swimmer_action));
+		filter.addAction(getString(R.string.lap_complete_action));
 		this.registerReceiver(this.mBroadcastReceiver, filter);
+		
+		//anything with adapter?
 	}
 	
 	@Override
@@ -49,12 +83,33 @@ public class MainActivity extends Activity {
 		this.unregisterReceiver(this.mBroadcastReceiver);
 	}
 	
-	private void receivedBroadcast(Intent i, Bundle b){
-		//string swimmer = (string) b.getInt("swimmer");
-		Log.d("receiveBroadcast", "hi");
-		Toast.makeText(this, " " + b.containsKey("swimmer"), Toast.LENGTH_SHORT).show();
+	private void startRace(){
+		if(race.getSwimmers() >= 4) { //TODO: remove hard cap and 'start' the race by click
+			race.start();
+			adapter.setStart( race.getStart() );
+		}
+		else {
+			Log.d("debug", "Not enough swimmers to start");
+		}
 	}
 
+	private void receivedNewSwimmer(Intent i, Bundle b){
 
+		if(b.containsKey("swimmer")){
+			race.addSwimmer(b.getInt("swimmer"));
+		}
+
+		TextView swimmersCount = (TextView) findViewById(R.id.numSwimmersView);
+		swimmersCount.setText(Integer.toString(race.getSwimmers()));
+		adapter.updateSwimmers(race.getAllSwimmers());
+		
+	}
+	
+	private void receivedLap(Intent i, Bundle b){
+		if(b.containsKey("swimmer")){
+			race.lap(b.getInt("swimmer"));
+		}
+		adapter.updateSwimmers(race.getAllSwimmers());
+	}
 
 }
