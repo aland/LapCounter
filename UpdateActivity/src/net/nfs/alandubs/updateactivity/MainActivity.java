@@ -1,6 +1,6 @@
 package net.nfs.alandubs.updateactivity;
 
-import net.nfs.alandubs.updateactivity.R;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
@@ -9,25 +9,22 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.Window;
-//import android.view.inputmethod.InputMethodManager;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
-//import android.view.Menu;
+
 
 public class MainActivity extends Activity {
     // Intent request codes
@@ -65,59 +62,28 @@ public class MainActivity extends Activity {
     public static final int MESSAGE_WRITE = 3;
     public static final int MESSAGE_DEVICE_NAME = 4;
     public static final int MESSAGE_TOAST = 5;
-    public static final int MESSAGE_GETTAG = 6;
     
 
     // Key names received from the BluetoothChatService Handler
     public static final String DEVICE_NAME = "device_name";
     public static final String TOAST = "toast";
-    public static final String RFIDTAG = "tag";
-	
+    
 	private BluetoothAdapter mBluetoothAdapter = null;
-    
 	private static BluetoothSerialService mSerialService = null;
-    
-	/**
-	 * Copy and pasted directly, not sure what we need from it
-	 */
-	//private static InputMethodManager mInputManager;
 	private boolean mEnablingBT;
-    private boolean mLocalEcho = false;
-    private int mFontSize = 9;
-    private int mColorId = 2;
-    private int mControlKeyId = 0;
-
-    private static final String LOCALECHO_KEY = "localecho";
-    private static final String FONTSIZE_KEY = "fontsize";
-    private static final String COLOR_KEY = "color";
-    private static final String CONTROLKEY_KEY = "controlkey";
-
-    public static final int WHITE = 0xffffffff;
-    public static final int BLACK = 0xff000000;
-    public static final int BLUE = 0xff344ebd;
-
-    private static final int[][] COLOR_SCHEMES = {
-        {BLACK, WHITE}, {WHITE, BLACK}, {WHITE, BLUE}};
-
-    private static final int[] CONTROL_KEY_SCHEMES = {
-        KeyEvent.KEYCODE_DPAD_CENTER,
-        KeyEvent.KEYCODE_AT,
-        KeyEvent.KEYCODE_ALT_LEFT,
-        KeyEvent.KEYCODE_ALT_RIGHT
-    };
-//    private static final String[] CONTROL_KEY_NAME = {
-//        "Ball", "@", "Left-Alt", "Right-Alt"
-//    };
-    private static String[] CONTROL_KEY_NAME;
-
-    private int mControlKeyCode;
+	
+    // Application key names
+    public static final String RFIDTAG = "tag";
+    public static final String MAXLAPS_KEY = "maxlaps";
+    // Application message types
+    public static final int MESSAGE_GETTAG = 6;
+    
+    private int mMaxLaps = 9;
+    
 
     private SharedPreferences mPrefs;
 	
     private MenuItem mMenuItemConnect;
-    /**
-     * End verbatim copypaste
-     */
     
 
 	/**
@@ -127,6 +93,7 @@ public class MainActivity extends Activity {
 	private ListView listView;
 	private SwimmerAdapter adapter;
 
+	@Deprecated
 	private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
 		@Override
 		public void onReceive(Context context, Intent intent){
@@ -153,68 +120,60 @@ public class MainActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		Resources r = getResources();
 		
 		if (DEBUG)
-			Log.e(LOG_TAG, "+++ ON CREATE +++");
+			Log.d(LOG_TAG, "+++ ON CREATE +++");
 
-		// not using these but probably should
-        //mPrefs = PreferenceManager.getDefaultSharedPreferences(this);
-        //readPrefs();
+		mPrefs = PreferenceManager.getDefaultSharedPreferences(this);
+        readPrefs();
 
 
-		//boolean useTitleFeature = false;
-	    // If the window has a container, then we are not free
-	    // to request window features.
-	    if(getWindow().getContainer() == null) {
-	       // useTitleFeature = requestWindowFeature(Window.FEATURE_CUSTOM_TITLE);
-	    	Log.d(LOG_TAG, "Container is null");
+        // useTitleFeature = requestWindowFeature(Window.FEATURE_CUSTOM_TITLE);
+	    // If the window has a container, then we are not free to request window features.
+	    if(getWindow().getContainer() != null) {
+	    	Log.e(LOG_TAG, "Container is not null");
 	    }
 
-	    requestWindowFeature(Window.FEATURE_CUSTOM_TITLE);
+	    if(!requestWindowFeature(Window.FEATURE_CUSTOM_TITLE)) {
+	    	Log.e(LOG_TAG, "Does not have FEATURE_CUSTOM_TITLE");
+	    }
+	    
         setContentView(R.layout.activity_main);
         
 		// Set up the window layout
-	    //if (useTitleFeature) {        
-            getWindow().setFeatureInt(Window.FEATURE_CUSTOM_TITLE, R.layout.custom_title);
-	    	Log.d(LOG_TAG, "Has FEATURE_CUSTOM_TITLE");
-	    	// Set up the custom title
-	        mTitle = (TextView) findViewById(R.id.title_left_text);
-	        mTitle.setText(R.string.app_name);
-	    //}
-
+        getWindow().setFeatureInt(Window.FEATURE_CUSTOM_TITLE, R.layout.custom_title);
+        
+	    // Set up the custom title
+	    mTitle = (TextView) findViewById(R.id.title_left_text);
+	    mTitle.setText(R.string.app_name);
         mTitle = (TextView) findViewById(R.id.title_right_text);
-        
         mTitle.setText("Hi mTitle");
-    
-      
-        
-		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+
+		//get bluetooth and fail if not found
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
 		if (mBluetoothAdapter == null) {
             finishDialogNoBluetooth();
 			return;
 		}
-        
 
-		
-	    race = new RaceEvent(r.getInteger(R.integer.maxlaps));
-		
+        mSerialService = new BluetoothSerialService(this, mHandlerBT);
+        
+	    race = new RaceEvent(mMaxLaps);
 		listView = (ListView) findViewById(R.id.swimmersView);
-		adapter = new SwimmerAdapter(getBaseContext(), r.getInteger(R.integer.maxlaps));
-		listView.setAdapter(adapter);
+        adapter = new SwimmerAdapter(getBaseContext(), mMaxLaps);
+        listView.setAdapter(adapter);
 		adapter.updateSwimmers(race.getAllSwimmers());
-		
-		mSerialService = new BluetoothSerialService(this, mHandlerBT); 
-		
+
 		Button startButton = (Button) this.findViewById(R.id.startButton);
 		startButton.setOnClickListener(new View.OnClickListener() {
 		    public void onClick(View v) {
-		        // Do something in response to button click
 		    	startRace();
 		    }
 		});
-
+		
+		//TODO other buttons like, export, reset
+		
 		if (DEBUG)
 			Log.e(LOG_TAG, "+++ DONE IN ON CREATE +++");
 		
@@ -271,16 +230,14 @@ public class MainActivity extends Activity {
 		    if (mSerialService != null) {
 		    	// Only if the state is STATE_NONE, do we know that we haven't started already
 		    	if (mSerialService.getState() == BluetoothSerialService.STATE_NONE) {
-		    		// Start the Bluetooth chat services
+		    		// Start the Bluetooth services
 		    		mSerialService.start();
 		    	}
 		    }
 
 		    if (mBluetoothAdapter != null) {
 		    	readPrefs();
-		    	updatePrefs();
-
-		    	//mEmulatorView.onResume();
+		    	//updatePrefs();
 		    }
 		}
 		
@@ -292,7 +249,7 @@ public class MainActivity extends Activity {
 		if (DEBUG)
 			Log.e(LOG_TAG, "- ON PAUSE -");
 		
-		//this.unregisterReceiver(this.mBroadcastReceiver);
+		//should do something?
 	}
 	
     @Override
@@ -310,29 +267,11 @@ public class MainActivity extends Activity {
 		
         if (mSerialService != null)
         	mSerialService.stop();
-        
+
 	}
 	
     private void readPrefs() {
-    	//TODO this
-    	/*
-        mLocalEcho = mPrefs.getBoolean(LOCALECHO_KEY, mLocalEcho);
-        mFontSize = readIntPref(FONTSIZE_KEY, mFontSize, 20);
-        mColorId = readIntPref(COLOR_KEY, mColorId, COLOR_SCHEMES.length - 1);
-        mControlKeyId = readIntPref(CONTROLKEY_KEY, mControlKeyId,
-                CONTROL_KEY_SCHEMES.length - 1);
-        */
-    }
-    
-    private void updatePrefs() {
-    	//TODO this
-    	/*
-        DisplayMetrics metrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(metrics);
-        mEmulatorView.setTextSize((int) (mFontSize * metrics.density));
-        setColors();
-        mControlKeyCode = CONTROL_KEY_SCHEMES[mControlKeyId];
-        */
+        mMaxLaps = readIntPref(MAXLAPS_KEY, mMaxLaps, 20);
     }
 
     private int readIntPref(String key, int defaultValue, int maxValue) {
@@ -357,7 +296,8 @@ public class MainActivity extends Activity {
     }
     
     // The Handler that gets information back from the BluetoothService
-    private final Handler mHandlerBT = new Handler() {
+    @SuppressLint("HandlerLeak") // complains this might leak if not static
+	private final Handler mHandlerBT = new Handler() {
     	
         @Override
         public void handleMessage(Message msg) {        	
@@ -370,8 +310,6 @@ public class MainActivity extends Activity {
                 		mMenuItemConnect.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
                 		mMenuItemConnect.setTitle(R.string.disconnect);
                 	}
-                	
-                	//mInputManager.showSoftInput(mEmulatorView, InputMethodManager.SHOW_IMPLICIT);
                 	
                     mTitle.setText(R.string.title_connected_to);
                     mTitle.append(mConnectedDeviceName);
@@ -395,21 +333,7 @@ public class MainActivity extends Activity {
                     break;
                 }
                 break;
-            case MESSAGE_WRITE:
-            	if (mLocalEcho) {
-            		//byte[] writeBuf = (byte[]) msg.obj;
-            		//mEmulatorView.write(writeBuf, msg.arg1);
-            		Toast.makeText(getApplicationContext(), "Would write out: "+msg.obj.toString(), Toast.LENGTH_SHORT).show();
-            	}
-                
-                break;
-/*                
-            case MESSAGE_READ:
-                byte[] readBuf = (byte[]) msg.obj;              
-                mEmulatorView.write(readBuf, msg.arg1);
-                
-                break;
-*/                
+              
             case MESSAGE_DEVICE_NAME:
                 // save the connected device's name
                 mConnectedDeviceName = msg.getData().getString(DEVICE_NAME);
@@ -421,10 +345,13 @@ public class MainActivity extends Activity {
                                Toast.LENGTH_SHORT).show();
                 break;
             case MESSAGE_GETTAG:
-            	Log.d(LOG_TAG, "Holy shit"+ msg.getData().getInt(RFIDTAG));
-            	
-            	receivedNewSwimmer(msg.getData().getInt(RFIDTAG));
-            	//TODO handle this better
+            	if(race.isStarted()){
+            		receivedLap(msg.getData().getInt(RFIDTAG));
+            	}
+            	else {
+            		receivedNewSwimmer(msg.getData().getInt(RFIDTAG));	
+            	}
+
             	break;
             }
         }
@@ -500,7 +427,7 @@ public class MainActivity extends Activity {
             	}
             return true;
         case R.id.preferences:
-        	doPreferences();
+       		doPreferences();	
             return true;
 
         }
@@ -508,8 +435,12 @@ public class MainActivity extends Activity {
     }
     
     private void doPreferences() {
-    	Log.d(LOG_TAG, "Todo doPreferences");
-        //startActivity(new Intent(this, TermPreferences.class));
+    	if(race.isStarted()){
+    		Toast.makeText(this, "You cannot change preferences after race has begun", Toast.LENGTH_SHORT).show();
+    	}
+    	else{
+    		startActivity(new Intent(this, SwimPreferences.class));	
+    	}
     }
     
     /**
@@ -616,10 +547,11 @@ public class MainActivity extends Activity {
     }
     
     /**
-     * Application classes 
+     * Application classes, mostly work with adapter
      */
-	private void startRace(){
-		if(race.getSwimmers() >= 4) { //TODO: remove hard cap and 'start' the race by click
+     
+    private void startRace(){
+		if(race.getSwimmers() >= 1) {
 			race.start();
 			adapter.setStart( race.getStart() );
 		}
@@ -632,10 +564,6 @@ public class MainActivity extends Activity {
 
 		if(b.containsKey("swimmer")){
 			race.addSwimmer(b.getInt("swimmer"));
-			if(race.getSwimmers() >= 4) { //TODO: remove hard cap and 'start' the race by click
-				race.start();
-				adapter.setStart( race.getStart() );
-			}
 		}
 
 		TextView swimmersCount = (TextView) findViewById(R.id.numSwimmersView);
@@ -651,14 +579,11 @@ public class MainActivity extends Activity {
 		adapter.updateSwimmers(race.getAllSwimmers());
 	}
 	
+	
 	//for fancy new BT service
 	private void receivedNewSwimmer(int i){
 		if(i > 1){
 			race.addSwimmer(i);
-			if(race.getSwimmers() >= 4) { //TODO: remove hard cap and 'start' the race by click
-				race.start();
-				adapter.setStart( race.getStart() );
-			}
 		}
 
 		TextView swimmersCount = (TextView) findViewById(R.id.numSwimmersView);
@@ -667,7 +592,10 @@ public class MainActivity extends Activity {
 	}
 	
 	private void receivedLap(int i){
-		//TODO this
+		if(i > 1){
+			race.lap(i);
+		}
+
 		adapter.updateSwimmers(race.getAllSwimmers());
 	}
 
