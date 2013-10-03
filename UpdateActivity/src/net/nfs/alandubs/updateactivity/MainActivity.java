@@ -64,11 +64,14 @@ public class MainActivity extends Activity {
     public static final int MESSAGE_READ = 2;
     public static final int MESSAGE_WRITE = 3;
     public static final int MESSAGE_DEVICE_NAME = 4;
-    public static final int MESSAGE_TOAST = 5;	
+    public static final int MESSAGE_TOAST = 5;
+    public static final int MESSAGE_GETTAG = 6;
+    
 
     // Key names received from the BluetoothChatService Handler
     public static final String DEVICE_NAME = "device_name";
     public static final String TOAST = "toast";
+    public static final String RFIDTAG = "tag";
 	
 	private BluetoothAdapter mBluetoothAdapter = null;
     
@@ -141,7 +144,7 @@ public class MainActivity extends Activity {
 				}
 			}
 			else {
-				Log.d("activity", "no bundle");
+				Log.d("debug", "no bundle");
 			}
 			//don't pass if no extra data
 		}
@@ -234,10 +237,10 @@ public class MainActivity extends Activity {
 			Log.e(LOG_TAG, "+ ON RESUME +");
 		}
 		
-		IntentFilter filter = new IntentFilter();
-		filter.addAction(getString(R.string.add_swimmer_action));
-		filter.addAction(getString(R.string.lap_complete_action));
-		this.registerReceiver(this.mBroadcastReceiver, filter);
+		//IntentFilter filter = new IntentFilter();
+		//filter.addAction(getString(R.string.add_swimmer_action));
+		//filter.addAction(getString(R.string.lap_complete_action));
+		//this.registerReceiver(this.mBroadcastReceiver, filter);
 		//anything with adapter?
 		
 		//BlueTerm stuff follows
@@ -289,7 +292,7 @@ public class MainActivity extends Activity {
 		if (DEBUG)
 			Log.e(LOG_TAG, "- ON PAUSE -");
 		
-		this.unregisterReceiver(this.mBroadcastReceiver);
+		//this.unregisterReceiver(this.mBroadcastReceiver);
 	}
 	
     @Override
@@ -320,6 +323,7 @@ public class MainActivity extends Activity {
                 CONTROL_KEY_SCHEMES.length - 1);
         */
     }
+    
     private void updatePrefs() {
     	//TODO this
     	/*
@@ -351,6 +355,7 @@ public class MainActivity extends Activity {
     public void send(byte[] out) {
     	mSerialService.write( out );
     }
+    
     // The Handler that gets information back from the BluetoothService
     private final Handler mHandlerBT = new Handler() {
     	
@@ -392,7 +397,7 @@ public class MainActivity extends Activity {
                 break;
             case MESSAGE_WRITE:
             	if (mLocalEcho) {
-            		byte[] writeBuf = (byte[]) msg.obj;
+            		//byte[] writeBuf = (byte[]) msg.obj;
             		//mEmulatorView.write(writeBuf, msg.arg1);
             		Toast.makeText(getApplicationContext(), "Would write out: "+msg.obj.toString(), Toast.LENGTH_SHORT).show();
             	}
@@ -415,6 +420,12 @@ public class MainActivity extends Activity {
                 Toast.makeText(getApplicationContext(), msg.getData().getString(TOAST),
                                Toast.LENGTH_SHORT).show();
                 break;
+            case MESSAGE_GETTAG:
+            	Log.d(LOG_TAG, "Holy shit"+ msg.getData().getInt(RFIDTAG));
+            	
+            	receivedNewSwimmer(msg.getData().getInt(RFIDTAG));
+            	//TODO handle this better
+            	break;
             }
         }
     };   
@@ -637,6 +648,26 @@ public class MainActivity extends Activity {
 		if(b.containsKey("swimmer")){
 			race.lap(b.getInt("swimmer"));
 		}
+		adapter.updateSwimmers(race.getAllSwimmers());
+	}
+	
+	//for fancy new BT service
+	private void receivedNewSwimmer(int i){
+		if(i > 1){
+			race.addSwimmer(i);
+			if(race.getSwimmers() >= 4) { //TODO: remove hard cap and 'start' the race by click
+				race.start();
+				adapter.setStart( race.getStart() );
+			}
+		}
+
+		TextView swimmersCount = (TextView) findViewById(R.id.numSwimmersView);
+		swimmersCount.setText(Integer.toString(race.getSwimmers()));
+		adapter.updateSwimmers(race.getAllSwimmers());
+	}
+	
+	private void receivedLap(int i){
+		//TODO this
 		adapter.updateSwimmers(race.getAllSwimmers());
 	}
 
