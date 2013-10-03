@@ -1,5 +1,14 @@
 package net.nfs.alandubs.updateactivity;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.util.Date;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -11,9 +20,11 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
+import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -62,7 +73,6 @@ public class MainActivity extends Activity {
     public static final int MESSAGE_WRITE = 3;
     public static final int MESSAGE_DEVICE_NAME = 4;
     public static final int MESSAGE_TOAST = 5;
-    
 
     // Key names received from the BluetoothChatService Handler
     public static final String DEVICE_NAME = "device_name";
@@ -93,30 +103,6 @@ public class MainActivity extends Activity {
 	private ListView listView;
 	private SwimmerAdapter adapter;
 
-	@Deprecated
-	private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
-		@Override
-		public void onReceive(Context context, Intent intent){
-			Bundle bundle = intent.getExtras();
-			
-			if(bundle != null){
-				if(intent.getAction().equals(getString(R.string.add_swimmer_action))){
-					MainActivity.this.receivedNewSwimmer(intent, bundle);
-				}
-				else if(intent.getAction().equals(getString(R.string.lap_complete_action))){
-					MainActivity.this.receivedLap(intent, bundle);
-				}
-				else {
-					Log.d("debug", intent.getAction());
-				}
-			}
-			else {
-				Log.d("debug", "no bundle");
-			}
-			//don't pass if no extra data
-		}
-	};
-	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -172,11 +158,75 @@ public class MainActivity extends Activity {
 		    }
 		});
 		
-		//TODO other buttons like, export, reset
+		Button exportButton = (Button) this.findViewById(R.id.exportButton);
+		exportButton.setOnClickListener(new View.OnClickListener() {
+		    public void onClick(View v) {
+		    	if(race.allCompleted()){
+		    		Log.d(LOG_TAG, race.toString());
+		    		writeToFile(race);
+		    	}
+		    }
+		});
+		
+		
 		
 		if (DEBUG)
 			Log.e(LOG_TAG, "+++ DONE IN ON CREATE +++");
 		
+	}
+	
+	private void writeToFile(Object obj){
+		boolean mExternalStorageAvailable = false;
+		boolean mExternalStorageWriteable = false;
+		File path = null;
+		File out = null;
+		FileOutputStream fout = null;
+		PrintWriter pw = null;
+		
+		String state = Environment.getExternalStorageState();
+		//DateFormat df = new android.text.format.DateFormat();
+		
+
+		if (Environment.MEDIA_MOUNTED.equals(state)) {
+		    // We can read and write the media
+		    mExternalStorageAvailable = mExternalStorageWriteable = true;
+
+		    try {
+		    	path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+			    out = new File(path, DateFormat.format("yydMkm", new java.util.Date()) + ".txt");
+			    fout = new FileOutputStream(out);
+			    pw = new PrintWriter(new OutputStreamWriter(fout, "UTF-8"));
+
+			    pw.print(race.toString());
+			    
+		    }
+		    catch (FileNotFoundException e){
+		    	Log.e(LOG_TAG, "FileNotFoundException: " + e.getMessage());
+		    }
+		    catch (UnsupportedEncodingException e){
+		    	Log.e(LOG_TAG, "UnsupportedEncodingException: " + e.getMessage());
+		    }
+		    finally{
+		    	//Close stuff
+	            if (pw != null) {
+	                pw.flush();
+	            }
+	            try {
+	                fout.close();
+	            } catch (IOException e) {
+	            }
+		    }
+		} else if (Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
+		    // We can only read the media
+		    mExternalStorageAvailable = true;
+		    mExternalStorageWriteable = false;
+		} else {
+		    // Something else is wrong. It may be one of many other states, but all we need
+		    //  to know is we can neither read nor write
+		    mExternalStorageAvailable = mExternalStorageWriteable = false;
+		}
+		
+		Log.d(LOG_TAG, "StorageAvailable " + mExternalStorageAvailable + ", StorageWriteable " + mExternalStorageWriteable);
 	}
 	
 	@Override
@@ -348,7 +398,7 @@ public class MainActivity extends Activity {
             	if(race.isStarted()){
             		receivedLap(msg.getData().getInt(RFIDTAG));
             	}
-            	else {
+            	else if(!race.isOver()) {
             		receivedNewSwimmer(msg.getData().getInt(RFIDTAG));	
             	}
 
@@ -559,30 +609,10 @@ public class MainActivity extends Activity {
 			Log.d("debug", "Not enough swimmers to start");
 		}
 	}
-
-	private void receivedNewSwimmer(Intent i, Bundle b){
-
-		if(b.containsKey("swimmer")){
-			race.addSwimmer(b.getInt("swimmer"));
-		}
-
-		TextView swimmersCount = (TextView) findViewById(R.id.numSwimmersView);
-		swimmersCount.setText(Integer.toString(race.getSwimmers()));
-		adapter.updateSwimmers(race.getAllSwimmers());
-		
-	}
-	
-	private void receivedLap(Intent i, Bundle b){
-		if(b.containsKey("swimmer")){
-			race.lap(b.getInt("swimmer"));
-		}
-		adapter.updateSwimmers(race.getAllSwimmers());
-	}
-	
 	
 	//for fancy new BT service
 	private void receivedNewSwimmer(int i){
-		if(i > 1){
+		if(race.isValidId(i)){
 			race.addSwimmer(i);
 		}
 
@@ -592,7 +622,7 @@ public class MainActivity extends Activity {
 	}
 	
 	private void receivedLap(int i){
-		if(i > 1){
+		if(race.isValidId(i)){
 			race.lap(i);
 		}
 

@@ -9,7 +9,12 @@ import android.util.SparseArray;
 
 public class RaceEvent {
 	//Control the minimum interval between laps (RFID reader will send multiple events for the duration of proximity)
-	private final long interval = 1000000000L; 
+	private final long micro	= 1000L;
+	private final long milli	= 1000000L;
+	private final long second	= 1000000000L;
+	
+	private final long interval = second;
+
 	private int totalLaps;
 	private int completed;
 
@@ -39,12 +44,22 @@ public class RaceEvent {
 		return !(startTime == null);
 	}
 	
+	public boolean isOver(){
+		return !(endTime == null);
+	}
+	
 	public void addSwimmer(int id) { //assuming the unique identifier is int
 		if(startTime == null && validId(id)){
 			Swimmer s = new Swimmer();
 			swimmers.put(id, s);
 			Log.i("debug", "Swimmer " + id + " added");
 		}
+	}
+	
+	public SparseArray<Swimmer> getSwimmersArr() {
+		//make sure to return null, probably a terrible idea..
+		//return (swimmers.size() == 0 ? null : swimmers);
+		return swimmers;
 	}
 	
 	//Manually cast to List of objects for fun
@@ -58,6 +73,17 @@ public class RaceEvent {
 		}
 		
 		return s;
+	}
+	
+	//Dump info for export
+	@Override
+	public String toString(){
+		String out = "";
+		int max = swimmers.size();
+		for(int i = 0; i < max; i++) {
+			out += swimmers.valueAt(i).toString() + "\n";
+		}
+		return out;
 	}
 	
 	public int getSwimmers(){
@@ -76,7 +102,7 @@ public class RaceEvent {
 	public void start(){
 		if(startTime == null && swimmers.size() >= 1) {
 			startTime = System.nanoTime();
-			Log.d("debug", "Started at: " + Long.toString(startTime / 1000000L));
+			Log.d("debug", "Started at: " + Long.toString(startTime / milli));
 		} // else restart?
 		else {
 			Log.d("debug", "start time already set or no swimmers set");
@@ -88,8 +114,11 @@ public class RaceEvent {
 
 		if(startTime != null && endTime == null){
 			Swimmer swimmer = swimmers.get(id);
-			if(swimmer != null){
-				if((swimmer.getLaps() < totalLaps) && (swimmer.getLastLap() < (now - interval))){
+			if(swimmer != null && (swimmer.getLastLap() < (now - interval))){
+				if((swimmer.getLaps() < totalLaps) ){
+					Log.d("debug", swimmer.getName() + " last lap: " + swimmer.getLastLap() + ". Now it's: " + now);
+					Log.i("debug", "Lap time for " + swimmer.getName() + ':' + (now - swimmer.getLastLap()));
+					
 					swimmer.setLapComplete(now); 
 				
 					if(swimmer.getLaps() == totalLaps){
@@ -100,33 +129,39 @@ public class RaceEvent {
 						}
 					}
 					
-					Log.d("debug", swimmer.getName() + " completed lap at: " + Long.toString(swimmer.getLastLap() / 1000000L));
+					Log.d("debug", swimmer.getName() + " completed lap " + swimmer.getLaps() + " at: " + Long.toString(swimmer.getLastLap() / 1000000L));
 					if(endTime != null)
-						Log.d("debug", "Race over at: " + endTime);
+						Log.i("debug", "Race over at: " + endTime);
+				}
+				else{
+					Log.d("debug", swimmer.getName() + " already finished." + swimmer.getLaps() );
 				}
 			}
-			else{
-				Log.d("debug", "Swimmer not found");
-			}
+
 		}
 		else{
-			Log.d("debug", "No start time set or end already set");
+			Log.d("debug", completed + " have already completed all " + totalLaps + " laps");
 		}
 	}
 	
 	public boolean allCompleted() {
-		if(completed > totalLaps) {
-			Log.d(this.getClass().getName(), "More completed than allowed");
+		if(completed > swimmers.size()) {
+			Log.e(this.getClass().getName(), "More completed than allowed");
 		}
+		Log.d("debug", "Completed: " + completed + ' ' + (endTime != null && completed >= swimmers.size()));
 		
-		return completed >= totalLaps;
+		return startTime != null && completed >= swimmers.size();
 	}
 	
 	private boolean validId(int id) {
-		if(id > 0 && swimmers.indexOfKey(id) < 0) {
+		if(isValidId(id) && swimmers.indexOfKey(id) < 0) {
 			return true;
 		}
 		return false;
+	}
+	
+	public boolean isValidId(int id){
+		return id > 0;
 	}
 	
 
